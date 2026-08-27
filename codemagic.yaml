@@ -44,15 +44,36 @@ workflows:
       - name: Calcular número de build
         script: |
           set -euo pipefail
-          if [ -n "${APP_STORE_APPLE_ID:-}" ]; then
-            LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo "0")
-          else
+          APP_ID="${APP_STORE_APPLE_ID:-}"
+
+          if [ -z "$APP_ID" ]; then
+            APP_ID="$(app-store-connect apps list --json 2>/dev/null \
+              | python3 -c "import json,sys; apps=json.load(sys.stdin); print(next((a['id'] for a in apps if a.get('attributes',{}).get('bundleId')=='${BUNDLE_ID}'), ''))" \
+              || true)"
+            if [ -n "$APP_ID" ]; then
+              echo "APP_STORE_APPLE_ID resuelto automáticamente: $APP_ID"
+              echo "APP_STORE_APPLE_ID=$APP_ID" >> "$CM_ENV"
+            fi
+          fi
+
+          LATEST="0"
+          if [ -n "$APP_ID" ]; then
+            RAW="$(app-store-connect get-latest-testflight-build-number "$APP_ID" --all-versions 2>/dev/null | tail -n 1 || echo "0")"
+            LATEST="${RAW##*.}"
+          fi
+          if ! [[ "$LATEST" =~ ^[0-9]+$ ]]; then
             LATEST="0"
           fi
+
           NEXT=$((LATEST + 1))
-          echo "Build number: $NEXT"
+          if [ "$NEXT" -le 1 ]; then
+            NEXT=2
+          fi
+
+          echo "Último build en TestFlight: $LATEST → nuevo: $NEXT"
           echo "NEXT_BUILD_NUMBER=$NEXT" >> "$CM_ENV"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT" App/Info.plist
+          agvtool new-version -all "$NEXT"
 
       - name: Firmar con provisioning profiles
         script: |
@@ -100,9 +121,11 @@ workflows:
 
           /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${NEXT_BUILD_NUMBER:-2}" "$APP/Info.plist"
 
           test -f "$APP/Assets.car"
           /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Info.plist"
 
           rm -f "$IPA_ABS"
           (cd "$WORKDIR" && zip -qr "$IPA_ABS" Payload)

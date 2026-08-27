@@ -17,7 +17,7 @@ App iOS (Swift Playgrounds / `.swiftpm`) lista para compilar en **Codemagic** y 
 3. En Codemagic:
    - Conecta este repo (GitHub `ytmness`).
    - Asegúrate de que la integración **`somnus_asc_key`** esté activa.
-   - Crea el grupo de variables **`workoutplanner_ios`** y, cuando tengas el id numérico de la app en ASC, añade `APP_STORE_APPLE_ID=<id>`.
+   - (Opcional) Grupo **`workoutplanner_ios`** con `APP_STORE_APPLE_ID` — si no lo pones, el workflow lo resuelve solo por bundle id.
 4. Dispara el workflow **WorkoutPlanner iOS · TestFlight** (push a `main` o tag `ios-v*`).
 
 ## Local
