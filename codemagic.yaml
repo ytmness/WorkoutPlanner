@@ -140,9 +140,29 @@ workflows:
             --app-icon AppIcon \
             --output-partial-info-plist /tmp/icon-partial.plist
 
+          # actool/build a veces dejan el Info.plist del .app sin claves iPad obligatorias
+          /usr/libexec/PlistBuddy -c "Merge $CM_BUILD_DIR/App/Info.plist" "$APP/Info.plist"
+
           /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Info.plist" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${NEXT_BUILD_NUMBER:-2}" "$APP/Info.plist"
+
+          # Garantizar launch screen + orientaciones (App Store 90474/90475)
+          /usr/libexec/PlistBuddy -c "Delete :UILaunchScreen" "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UILaunchScreen dict" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:1 string UIInterfaceOrientationLandscapeLeft" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:2 string UIInterfaceOrientationLandscapeRight" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationPortraitUpsideDown" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:2 string UIInterfaceOrientationLandscapeLeft" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:3 string UIInterfaceOrientationLandscapeRight" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Delete :MinimumOSVersion" "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :MinimumOSVersion string 17.0" "$APP/Info.plist"
 
           test -f "$APP/Assets.car"
           codesign_status "$APP" "after-actool-before-resign" "B"
@@ -180,9 +200,12 @@ workflows:
           test -n "$APP"
           echo "App bundle: $APP"
           /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print UILaunchScreen' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print UISupportedInterfaceOrientations' "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print UISupportedInterfaceOrientations~ipad' "$APP/Info.plist"
           test -f "$APP/Assets.car"
           codesign --verify --deep --strict "$APP"
-          echo "Iconos y firma OK — listo para App Store Connect"
+          echo "Iconos, plist iPad y firma OK — listo para App Store Connect"
     artifacts:
       - build/ios/ipa/*.ipa
       - debug-98030d.log
