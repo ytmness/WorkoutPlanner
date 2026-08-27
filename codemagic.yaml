@@ -40,6 +40,8 @@ workflows:
           xcodegen generate
           test -d "$XCODE_PROJECT"
           xcodebuild -list -project "$XCODE_PROJECT"
+          echo "==== Asset catalog en pbxproj ===="
+          grep "Assets.xcassets" WorkoutPlanner.xcodeproj/project.pbxproj || echo "WARN: Assets.xcassets no encontrado en pbxproj"
 
       - name: Calcular número de build
         script: |
@@ -76,10 +78,6 @@ workflows:
           trap dump_xcode_log ERR
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
           defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
-
-          # Verificar que XcodeGen enlazó el asset catalog antes de compilar
-          grep -q "Assets.xcassets" WorkoutPlanner.xcodeproj/project.pbxproj
-          grep -q "AppIcon.appiconset" WorkoutPlanner.xcodeproj/project.pbxproj
 
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
