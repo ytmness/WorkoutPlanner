@@ -105,12 +105,33 @@ workflows:
       - name: Inyectar iconos en el IPA
         script: |
           set -euo pipefail
+          # #region agent log
+          DEBUG_LOG="$CM_BUILD_DIR/debug-98030d.log"
+          debug_log() {
+            local hid="$1" msg="$2" data="$3"
+            printf '{"sessionId":"98030d","hypothesisId":"%s","location":"codemagic:inject","message":"%s","data":%s,"timestamp":%s}\n' \
+              "$hid" "$msg" "$data" "$(python3 -c 'import time; print(int(time.time()*1000))')" >> "$DEBUG_LOG"
+          }
+          codesign_status() {
+            local app="$1"
+            local label="$2"
+            local verify_rc=0 authority="unknown"
+            codesign --verify --deep --strict "$app" >/dev/null 2>&1 || verify_rc=$?
+            authority="$(codesign -dv "$app" 2>&1 | awk -F= '/Authority=/ {print $2; exit}' | tr -d '"' || echo unknown)"
+            debug_log "$3" "$label" "{\"verifyRc\":$verify_rc,\"authority\":\"$authority\"}"
+            echo "DEBUG [$label] verifyRc=$verify_rc authority=$authority"
+          }
+          # #endregion agent log
+
           IPA="$(ls build/ios/ipa/*.ipa | head -1)"
           IPA_ABS="$(cd "$(dirname "$IPA")" && pwd)/$(basename "$IPA")"
           WORKDIR="$(mktemp -d)"
           unzip -q "$IPA_ABS" -d "$WORKDIR"
           APP="$(find "$WORKDIR/Payload" -maxdepth 1 -name '*.app' | head -1)"
           test -n "$APP"
+
+          codesign_status "$APP" "before-actool" "A"
+          codesign -d --entitlements :- "$APP" > /tmp/wp-entitlements.plist 2>/dev/null || true
 
           xcrun actool "$CM_BUILD_DIR/App/Assets.xcassets" \
             --compile "$APP" \
@@ -124,11 +145,30 @@ workflows:
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${NEXT_BUILD_NUMBER:-2}" "$APP/Info.plist"
 
           test -f "$APP/Assets.car"
+          codesign_status "$APP" "after-actool-before-resign" "B"
+
+          SIGN_IDENTITY="$(xcodebuild -showBuildSettings -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -configuration Release 2>/dev/null \
+            | awk -F' = ' '/^    CODE_SIGN_IDENTITY =/ {print $2; exit}')"
+          if [ -z "$SIGN_IDENTITY" ] || [ "$SIGN_IDENTITY" = "-" ]; then
+            SIGN_IDENTITY="$(security find-identity -v -p codesigning | awk -F'"' '/Apple Distribution/ {print $2; exit}')"
+          fi
+          test -n "$SIGN_IDENTITY"
+          debug_log "C" "sign-identity" "{\"identity\":\"$SIGN_IDENTITY\"}"
+          echo "Re-firmando con: $SIGN_IDENTITY"
+
+          if [ -s /tmp/wp-entitlements.plist ]; then
+            codesign --force --sign "$SIGN_IDENTITY" --entitlements /tmp/wp-entitlements.plist --timestamp=none --generate-entitlement-der "$APP"
+          else
+            codesign --force --sign "$SIGN_IDENTITY" --timestamp=none --generate-entitlement-der "$APP"
+          fi
+          codesign_status "$APP" "after-resign" "A"
+
           /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$APP/Info.plist"
 
           rm -f "$IPA_ABS"
           (cd "$WORKDIR" && zip -qr "$IPA_ABS" Payload)
+          codesign_status "$APP" "after-repack" "E"
 
       - name: Verificar iconos en el IPA
         script: |
@@ -141,9 +181,11 @@ workflows:
           echo "App bundle: $APP"
           /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
           test -f "$APP/Assets.car"
-          echo "Iconos OK — listo para App Store Connect"
+          codesign --verify --deep --strict "$APP"
+          echo "Iconos y firma OK — listo para App Store Connect"
     artifacts:
       - build/ios/ipa/*.ipa
+      - debug-98030d.log
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
