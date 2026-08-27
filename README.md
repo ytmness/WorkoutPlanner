@@ -22,5 +22,5 @@ App iOS (Swift Playgrounds / `.swiftpm`) lista para compilar en **Codemagic** y 
 
 ## Local
 
-- Swift Playgrounds / Xcode: abre la carpeta (usa `Package.swift`).
-- CI (Codemagic): genera `WorkoutPlanner.xcodeproj` con XcodeGen desde `project.yml` para archivar un `.app` real (el target SPM solo producía un binario CLI).
+- Swift Playgrounds / Xcode: abre la carpeta raíz (`Package.swift` apunta a `App/`).
+- CI (Codemagic): genera `WorkoutPlanner.xcodeproj` desde `App/` con XcodeGen e inyecta iconos con `actool` antes de subir a TestFlight.

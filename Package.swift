@@ -37,16 +37,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "AppModule",
-            path: ".",
-            exclude: [
-                "codemagic.yaml",
-                "README.md",
-                ".gitignore",
-                "project.yml",
-                "Info.plist",
-                "Assets.xcassets",
-                "WorkoutPlanner.xcodeproj"
-            ],
+            path: "App",
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals")
             ]

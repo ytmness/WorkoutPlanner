@@ -34,14 +34,12 @@ workflows:
       - name: Generar Xcode project (app .app real)
         script: |
           set -euo pipefail
-          # El Package.swift de Playgrounds archiva un binario CLI, no un .app.
-          # XcodeGen crea un target application firmable para TestFlight.
           brew install xcodegen
           xcodegen generate
           test -d "$XCODE_PROJECT"
+          test -d App/Assets.xcassets/AppIcon.appiconset
           xcodebuild -list -project "$XCODE_PROJECT"
-          echo "==== Asset catalog en pbxproj ===="
-          grep "Assets.xcassets" WorkoutPlanner.xcodeproj/project.pbxproj || echo "WARN: Assets.xcassets no encontrado en pbxproj"
+          grep "Assets.xcassets" WorkoutPlanner.xcodeproj/project.pbxproj || echo "WARN: Assets.xcassets no referenciado"
 
       - name: Calcular número de build
         script: |
@@ -54,8 +52,7 @@ workflows:
           NEXT=$((LATEST + 1))
           echo "Build number: $NEXT"
           echo "NEXT_BUILD_NUMBER=$NEXT" >> "$CM_ENV"
-          agvtool new-version -all "$NEXT" || \
-            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT" Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $NEXT" App/Info.plist
 
       - name: Firmar con provisioning profiles
         script: |
@@ -84,6 +81,32 @@ workflows:
             --scheme "$XCODE_SCHEME" \
             --disable-xcpretty
 
+      - name: Inyectar iconos en el IPA
+        script: |
+          set -euo pipefail
+          IPA="$(ls build/ios/ipa/*.ipa | head -1)"
+          IPA_ABS="$(cd "$(dirname "$IPA")" && pwd)/$(basename "$IPA")"
+          WORKDIR="$(mktemp -d)"
+          unzip -q "$IPA_ABS" -d "$WORKDIR"
+          APP="$(find "$WORKDIR/Payload" -maxdepth 1 -name '*.app' | head -1)"
+          test -n "$APP"
+
+          xcrun actool "$CM_BUILD_DIR/App/Assets.xcassets" \
+            --compile "$APP" \
+            --platform iphoneos \
+            --minimum-deployment-target 17.0 \
+            --app-icon AppIcon \
+            --output-partial-info-plist /tmp/icon-partial.plist
+
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Info.plist" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIconName string AppIcon" "$APP/Info.plist"
+
+          test -f "$APP/Assets.car"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
+
+          rm -f "$IPA_ABS"
+          (cd "$WORKDIR" && zip -qr "$IPA_ABS" Payload)
+
       - name: Verificar iconos en el IPA
         script: |
           set -euo pipefail
@@ -95,7 +118,7 @@ workflows:
           echo "App bundle: $APP"
           /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
           test -f "$APP/Assets.car"
-          echo "Assets.car presente — iconos compilados OK"
+          echo "Iconos OK — listo para App Store Connect"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
