@@ -1,0 +1,16 @@
+.swiftpm/
+.DS_Store
+graphify-out/
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+xcuserdata/
+*.moved-aside
+*.xcuserstate
+.env
+.env.*
+*.p8
+*.p12
+*.pem
+*.mobileprovision
