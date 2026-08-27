@@ -44,6 +44,7 @@ let package = Package(
                 ".gitignore",
                 "project.yml",
                 "Info.plist",
+                "Assets.xcassets",
                 "WorkoutPlanner.xcodeproj"
             ],
             swiftSettings: [
