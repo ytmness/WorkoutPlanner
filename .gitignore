@@ -2,6 +2,9 @@
 .DS_Store
 graphify-out/
 build/
+WorkoutPlanner.xcodeproj/
+*.xcworkspace/
+DerivedData/
 DerivedData/
 *.ipa
 *.xcarchive

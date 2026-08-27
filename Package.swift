@@ -42,7 +42,9 @@ let package = Package(
                 "codemagic.yaml",
                 "README.md",
                 ".gitignore",
-                "graphify-out"
+                "project.yml",
+                "Info.plist",
+                "WorkoutPlanner.xcodeproj"
             ],
             swiftSettings: [
                 .enableUpcomingFeature("BareSlashRegexLiterals")
