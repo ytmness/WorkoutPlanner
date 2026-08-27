@@ -77,10 +77,27 @@ workflows:
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
           defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
 
+          # Verificar que XcodeGen enlazó el asset catalog antes de compilar
+          grep -q "Assets.xcassets" WorkoutPlanner.xcodeproj/project.pbxproj
+          grep -q "AppIcon.appiconset" WorkoutPlanner.xcodeproj/project.pbxproj
+
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
             --disable-xcpretty
+
+      - name: Verificar iconos en el IPA
+        script: |
+          set -euo pipefail
+          IPA="$(ls build/ios/ipa/*.ipa | head -1)"
+          TMP="$(mktemp -d)"
+          unzip -q "$IPA" -d "$TMP"
+          APP="$(find "$TMP/Payload" -maxdepth 1 -name '*.app' | head -1)"
+          test -n "$APP"
+          echo "App bundle: $APP"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleIconName' "$APP/Info.plist"
+          test -f "$APP/Assets.car"
+          echo "Assets.car presente — iconos compilados OK"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
